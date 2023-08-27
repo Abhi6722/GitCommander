@@ -40,9 +40,9 @@ You need to have [Node.js](https://nodejs.org/) and [npm](https://www.npmjs.com/
    npm start
    ```
 
-## Usage
+## Usage with installing
 
-Run the CLI by typing `npm start` in your terminal. Follow the interactive prompts to perform various repository management tasks.
+Open the Terminal and just type `npx @abhi6722/gitcommander` in your terminal. Follow the interactive prompts to perform various repository management tasks.
 
 ## Contributions
 
