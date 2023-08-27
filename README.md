@@ -2,6 +2,8 @@
 
 Effortlessly manage and synchronize GitHub repositories with ease using GitCommander.
 
+<img width="800" alt="GitCommander" src="https://github.com/Abhi6722/GitCommander/assets/62201123/32784825-3a17-46ee-85f8-73e333ddb6e4">
+
 ## Features
 
 - Clone all your repositories to a specified location.
