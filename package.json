@@ -1,5 +1,5 @@
 {
-  "name": "gitcommander",
+  "name": "@abhi6722/gitcommander",
   "version": "1.0.0",
   "description": "Effortlessly manage and synchronize GitHub repositories with ease using GitCommander",
   "main": "index.js",
