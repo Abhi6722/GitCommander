@@ -160,106 +160,130 @@ async function createNewRepository(accessToken, repositoryName) {
 async function migrateRepository(username, accessToken) {
   console.log(chalk.bold('\nMigrate Repository'));
 
-  const answers = await inquirer.prompt([
-    {
-      type: 'input',
-      name: 'sourceRepoUrl',
-      message: 'Enter the URL of the source repository:',
-    },
-    {
-      type: 'input',
-      name: 'newRepoName',
-      message: 'Enter the name for the new repository:',
-    },
-    {
-      type: 'input',
-      name: 'newAuthorName',
-      message: 'Enter the new author name:',
-    },
-    {
-      type: 'input',
-      name: 'newAuthorEmail',
-      message: 'Enter the new author email:',
-    },
-  ]);
+  let continueMigrating = true;
+  let hasProvidedNameAndEmail = false;
+  let newAuthorName, newAuthorEmail;
 
-  const newRepoName = answers.newRepoName;
-  const newAuthorName = answers.newAuthorName;
-  const newAuthorEmail = answers.newAuthorEmail;
-  const sourceRepoUrl = answers.sourceRepoUrl;
+  while (continueMigrating) {
+    if (!hasProvidedNameAndEmail) {
+      const nameAndEmailAnswers = await inquirer.prompt([
+        {
+          type: 'input',
+          name: 'newAuthorName',
+          message: 'Enter the new author name:',
+        },
+        {
+          type: 'input',
+          name: 'newAuthorEmail',
+          message: 'Enter the new author email:',
+        },
+      ]);
 
-  const newRepoUrl = await createNewRepository(accessToken, newRepoName);
-  if (!newRepoUrl) {
-    console.error('Repository creation failed.');
-    return;
+      newAuthorName = nameAndEmailAnswers.newAuthorName;
+      newAuthorEmail = nameAndEmailAnswers.newAuthorEmail;
+      hasProvidedNameAndEmail = true;
+    }
+
+    const answers = await inquirer.prompt([
+      {
+        type: 'input',
+        name: 'sourceRepoUrl',
+        message: 'Enter the URL of the source repository:',
+      },
+      {
+        type: 'input',
+        name: 'newRepoName',
+        message: 'Enter the name for the new repository:',
+      },
+    ]);
+
+    const newRepoName = answers.newRepoName;
+    const sourceRepoUrl = answers.sourceRepoUrl;
+
+    const newRepoUrl = await createNewRepository(accessToken, newRepoName);
+    if (!newRepoUrl) {
+      console.error('Repository creation failed.');
+      return;
+    }
+
+    const clonePath = `${newRepoName}.git`;
+
+    try {
+      console.log(`\nCloning source repository...`);
+      execSync(`git clone --bare ${sourceRepoUrl} ${clonePath}`);
+    } catch (error) {
+      console.error(`Error cloning source repository: ${error.message}`);
+      return;
+    }
+
+    process.chdir(clonePath);
+
+    try {
+      console.log(`\nUpdating author information...`);
+      execSync(`
+        git filter-branch --env-filter '
+          export GIT_AUTHOR_NAME="${newAuthorName}"
+          export GIT_AUTHOR_EMAIL="${newAuthorEmail}"
+          export GIT_COMMITTER_NAME="${newAuthorName}"
+          export GIT_COMMITTER_EMAIL="${newAuthorEmail}"
+        ' --tag-name-filter cat -- --branches --tags
+      `);
+    } catch (error) {
+      console.error(`Error updating author information: ${error.message}`);
+      return;
+    }
+
+    process.chdir('..');
+
+    try {
+      console.log(`\nCloning updated repository...`);
+      execSync(`git clone ${clonePath} ${newRepoName}`);
+    } catch (error) {
+      console.error(`Error cloning updated repository: ${error.message}`);
+      return;
+    }
+
+    process.chdir(newRepoName);
+
+    try {
+      console.log(`\nSetting remote origin URL...`);
+      execSync(`git remote set-url origin ${newRepoUrl}`);
+    } catch (error) {
+      console.error(`Error setting remote origin URL: ${error.message}`);
+      return;
+    }
+
+    try {
+      console.log(`\nPushing to the new repository...`);
+      execSync('git push --mirror origin');
+    } catch (error) {
+      console.error(`Error pushing to new repository: ${error.message}`);
+      return;
+    }
+
+    process.chdir('..');
+
+    try {
+      console.log(`\nCleaning up...`);
+      execSync(`rm -rf ${clonePath}`);
+    } catch (error) {
+      console.error(`Error cleaning up: ${error.message}`);
+      return;
+    }
+
+    console.log(chalk.green('\nRepository migration completed successfully.'));
+
+    const { continueMigrating: continueOption } = await inquirer.prompt([
+      {
+        type: 'confirm',
+        name: 'continueMigrating',
+        message: 'Do you want to continue migrating more repositories?',
+        default: false,
+      },
+    ]);
+
+    continueMigrating = continueOption;
   }
-
-  const clonePath = `${newRepoName}.git`;
-
-  try {
-    console.log(`\nCloning source repository...`);
-    execSync(`git clone --bare ${sourceRepoUrl} ${clonePath}`);
-  } catch (error) {
-    console.error(`Error cloning source repository: ${error.message}`);
-    return;
-  }
-
-  process.chdir(clonePath);
-
-  try {
-    console.log(`\nUpdating author information...`);
-    execSync(`
-      git filter-branch --env-filter '
-        export GIT_AUTHOR_NAME="${newAuthorName}"
-        export GIT_AUTHOR_EMAIL="${newAuthorEmail}"
-        export GIT_COMMITTER_NAME="${newAuthorName}"
-        export GIT_COMMITTER_EMAIL="${newAuthorEmail}"
-      ' --tag-name-filter cat -- --branches --tags
-    `);
-  } catch (error) {
-    console.error(`Error updating author information: ${error.message}`);
-    return;
-  }
-
-  process.chdir('..');
-
-  try {
-    console.log(`\nCloning updated repository...`);
-    execSync(`git clone ${clonePath} ${newRepoName}`);
-  } catch (error) {
-    console.error(`Error cloning updated repository: ${error.message}`);
-    return;
-  }
-
-  process.chdir(newRepoName);
-
-  try {
-    console.log(`\nSetting remote origin URL...`);
-    execSync(`git remote set-url origin ${newRepoUrl}`);
-  } catch (error) {
-    console.error(`Error setting remote origin URL: ${error.message}`);
-    return;
-  }
-
-  try {
-    console.log(`\nPushing to the new repository...`);
-    execSync('git push --mirror origin');
-  } catch (error) {
-    console.error(`Error pushing to new repository: ${error.message}`);
-    return;
-  }
-
-  process.chdir('..');
-
-  try {
-    console.log(`\nCleaning up...`);
-    execSync(`rm -rf ${clonePath}`);
-  } catch (error) {
-    console.error(`Error cleaning up: ${error.message}`);
-    return;
-  }
-
-  console.log(chalk.green('\nRepository migration completed successfully.'));
 }
 
 
